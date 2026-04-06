@@ -1,10 +1,11 @@
 from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
 from tg_bot.keyboards import builders as kb
+from grpc_client.client import send_new_product
 
 router = Router()
 
@@ -47,5 +48,24 @@ async def process_price(message: Message, state: FSMContext) -> None:
     await state.update_data(target_price=int(message.text))
 
     data = await state.get_data()
-    await message.answer(f"Done! I've saved the product: {data['name']}. Waiting for the price {data['target_price']}.")
+    user_id = message.from_user.id
+
+    product_id = await send_new_product(
+        user_id=user_id,
+        url=data["url"],
+        name=data["name"],
+        target_price=data["target_price"]
+    )
+
+    if product_id:
+        await message.answer(
+            f"Successfully added your product (ID: {product_id})\n{data['name']}",
+            reply_markup=ReplyKeyboardRemove()
+        )
+    else:
+        await message.answer(
+            "Look, there's a problem on the server. Try again later.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+
     await state.clear()
