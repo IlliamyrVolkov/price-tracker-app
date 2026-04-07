@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove
 
 from tg_bot.keyboards import builders as kb
-from services.grpc_client.client import register_user
+from services.grpc_client.client import grpc_client
 
 router = Router()
 
@@ -31,7 +31,7 @@ async def start_handler(message: Message) -> None:
     user_id = message.from_user.id
     user_name = message.from_user.username or message.from_user.first_name
 
-    await register_user(user_id, user_name)
+    await grpc_client.register_user(user_id, user_name)
     await message.answer(
         "Hello! I am a bot for price updates. What do you want to do?",
         reply_markup=kb.get_reply_keyboard(

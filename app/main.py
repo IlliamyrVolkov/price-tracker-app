@@ -3,7 +3,7 @@ from aiogram import Bot, Dispatcher
 import asyncio
 
 from core.config import settings
-from tg_bot.handlers import add_item, common
+from tg_bot.handlers import add_product, common, list_products
 
 
 async def consume_kafka():
@@ -25,7 +25,8 @@ async def main():
     bot = Bot(token=settings.tg.token)
     disp = Dispatcher()
     disp.include_router(common.router)
-    disp.include_router(add_item.router)
+    disp.include_router(add_product.router)
+    disp.include_router(list_products.router)
     kafka_task = asyncio.create_task(consume_kafka())
 
     print("Bot is starting...")

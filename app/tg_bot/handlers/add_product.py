@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
 from tg_bot.keyboards import builders as kb
-from services.grpc_client.client import send_new_product
+from services.grpc_client.client import grpc_client
 
 router = Router()
 
@@ -51,7 +51,7 @@ async def process_price(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     user_id = message.from_user.id
 
-    product_id = await send_new_product(
+    product_id = await grpc_client.send_new_product(
         user_id=user_id,
         url=data["url"],
         name=data["name"],
