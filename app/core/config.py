@@ -2,15 +2,21 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from pathlib import Path
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class TelegramSettings(BaseModel):
-    bot_token: str
+    token: str
 
 
 class KafkaSettings(BaseModel):
-    kafka_bootstrap_servers: str
+    bootstrap_servers: str
+
+
+class GrpcSettings(BaseModel):
+    host: str
+    port: int
 
 
 class Settings(BaseSettings):
@@ -22,6 +28,7 @@ class Settings(BaseSettings):
     )
     tg: TelegramSettings
     kafka: KafkaSettings
+    rpc: GrpcSettings
 
 
 settings = Settings()

@@ -3,9 +3,10 @@ import logging
 
 from . import price_pb2
 from . import price_pb2_grpc
+from core.config import settings
 
 
-GRPC_SERVER_ADDRESS = 'localhost:50051'
+GRPC_SERVER_ADDRESS = f"{settings.rpc_host}:{settings.rpc_port}"
 
 
 async def send_new_product(user_id: int, url: str, name: str, target_price: float):
