@@ -9,7 +9,7 @@ from tg_bot.handlers import add_item, common
 async def consume_kafka():
     consumer = AIOKafkaConsumer(
         'my_topic', 'my_other_topic',
-        bootstrap_servers=settings.kafka.kafka_bootstrap_servers,
+        bootstrap_servers=settings.kafka.bootstrap_servers,
         group_id="my-group")
 
     await consumer.start()
@@ -22,7 +22,7 @@ async def consume_kafka():
 
 
 async def main():
-    bot = Bot(token=settings.tg.bot_token)
+    bot = Bot(token=settings.tg.token)
     disp = Dispatcher()
     disp.include_router(common.router)
     disp.include_router(add_item.router)

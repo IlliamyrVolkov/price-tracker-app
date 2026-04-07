@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
 from tg_bot.keyboards import builders as kb
-from grpc_client.client import send_new_product
+from services.grpc_client.client import send_new_product
 
 router = Router()
 
@@ -17,6 +17,7 @@ class AddProductStates(StatesGroup):
 
 
 @router.message(Command("add"))
+@router.message(F.text == "➕ Add product")
 async def cmd_add_product(message: Message, state: FSMContext) -> None:
     await message.answer(
         "Send a link to the product:",
