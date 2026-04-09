@@ -51,7 +51,7 @@ async def process_price(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     user_id = message.from_user.id
 
-    product_id = await grpc_client.send_new_product(
+    product_id = await grpc_client.new_product(
         user_id=user_id,
         url=data["url"],
         name=data["name"],

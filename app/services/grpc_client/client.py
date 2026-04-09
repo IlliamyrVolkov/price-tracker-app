@@ -24,7 +24,7 @@ class PriceClient:
                 logging.error(f"gRPC Error: {e.code()} - {e.details()}")
                 return None
 
-    async def send_new_product(self, user_id: int, url: str, name: str, target_price: float):
+    async def new_product(self, user_id: int, url: str, name: str, target_price: float):
         async with grpc.aio.insecure_channel(self.address) as channel:
             stub = price_pb2_grpc.PriceServiceStub(channel)
 
@@ -56,6 +56,21 @@ class PriceClient:
             except grpc.aio.AioRpcError as e:
                 logging.error(f"gRPC Error: {e.code()} - {e.details()}")
                 return None
+
+    async def del_product(self, product_id: int, user_id: int):
+        async with grpc.aio.insecure_channel(self.address) as channel:
+            stub = price_pb2_grpc.PriceServiceStub(channel)
+            request = price_pb2.DeleteProductRequest(product_id=product_id, user_id=user_id)
+
+            try:
+                response = await stub.Delete(request)
+                logging.info(f"gRPC Success: Product has delete {response.status}")
+                return response.status
+
+            except grpc.aio.AioRpcError as e:
+                logging.error(f"gRPC Error: {e.code()} - {e.details()}")
+                return None
+
 
 grpc_client = PriceClient(
     host=settings.rpc.host,

@@ -1,10 +1,6 @@
-import logging
 from aiogram import Router, F
-from aiogram.filters import StateFilter, Command
-from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.types import Message
 
-from tg_bot.keyboards import builders as kb
 from services.grpc_client.client import grpc_client
 
 router = Router()
@@ -14,7 +10,6 @@ router = Router()
 async def get_user_products(message: Message):
     user_id = message.from_user.id
     products = await grpc_client.get_products(user_id)
-
 
     if not products:
         await message.answer(
