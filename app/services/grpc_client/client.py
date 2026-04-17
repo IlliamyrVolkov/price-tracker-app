@@ -71,6 +71,20 @@ class PriceClient:
                 logging.error(f"gRPC Error: {e.code()} - {e.details()}")
                 return None
 
+    async def update_product_price(self, user_id: int, product_id: int, target_price: float):
+        async with grpc.aio.insecure_channel(self.address) as channel:
+            stub = price_pb2_grpc.PriceServiceStub(channel)
+            request = price_pb2.UpdateRequest(user_id=user_id, product_id=product_id, target_price=target_price)
+
+            try:
+                response = await stub.UpdateTargetPrice(request)
+                logging.info(f"gRPC Success: Price updated {response.status}")
+                return response.status
+
+            except grpc.aio.AioRpcError as e:
+                logging.error(f"gRPC Error: {e.code()} - {e.details()}")
+                return None
+
 
 grpc_client = PriceClient(
     host=settings.rpc.host,

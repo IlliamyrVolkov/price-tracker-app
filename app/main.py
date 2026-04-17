@@ -7,7 +7,9 @@ from tg_bot.handlers import (
     add_product,
     common,
     list_products,
-    del_product)
+    del_product,
+    updt_product_price
+)
 
 
 
@@ -34,6 +36,7 @@ async def main():
     disp.include_router(add_product.router)
     disp.include_router(list_products.router)
     disp.include_router(del_product.router)
+    disp.include_router(updt_product_price.router)
 
     kafka_task = asyncio.create_task(consume_kafka())
 
