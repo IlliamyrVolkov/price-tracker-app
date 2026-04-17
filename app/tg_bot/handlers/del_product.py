@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
 from services.grpc_client.client import grpc_client
+from tg_bot.utils.formatters import get_formatted_products_text
 
 router = Router()
 
@@ -14,20 +15,15 @@ class DeleteProductStates(StatesGroup):
 
 @router.message(F.text == "🗑️ Delete product")
 async def init_delete_product(message: Message, state: FSMContext):
-    user_id = message.from_user.id
-    products = await grpc_client.get_products(user_id)
+    products_text = await get_formatted_products_text(message.from_user.id)
 
-    if not products:
+    if not products_text:
         await message.answer(
             "You don't have any tracked products yet. Click ➕ Add product to add your first one!"
         )
         return
 
-    text = "Your products:\n\n"
-    for product in products:
-        text += f"ID: {product.product_id} | {product.name}\n"
-
-    await message.answer(f"{text}\nEnter the product ID you want to delete:")
+    await message.answer(f"{products_text}\nEnter the product ID you want to delete:")
     await state.set_state(DeleteProductStates.waiting_for_product_id)
 
 
