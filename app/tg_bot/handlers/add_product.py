@@ -42,13 +42,14 @@ async def process_name(message: Message, state: FSMContext) -> None:
 
 @router.message(AddProductStates.waiting_for_price)
 async def process_price(message: Message, state: FSMContext) -> None:
-    if not message.text.isdigit():
+    if not message.text or not message.text.isdigit():
         await message.answer("Price must be an integer")
         return
 
     await state.update_data(target_price=int(message.text))
 
     data = await state.get_data()
+    if not message.from_user: return
     user_id = message.from_user.id
 
     product_id = await grpc_client.new_product(

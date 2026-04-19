@@ -16,6 +16,7 @@ class UpdatePriceStates(StatesGroup):
 
 @router.message(F.text == "✨ Change product")
 async def init_change_price(message: Message, state: FSMContext):
+    if not message.from_user: return
     products_text = await get_formatted_products_text(message.from_user.id)
 
     if not products_text:
@@ -30,7 +31,7 @@ async def init_change_price(message: Message, state: FSMContext):
 
 @router.message(UpdatePriceStates.waiting_for_product_id)
 async def product_id_for_update(message: Message, state: FSMContext):
-    if not message.text.isdigit():
+    if not message.text or not message.text.isdigit():
         await message.answer("ID must be an integer. Try again or type 'Cancel'")
         return
 
@@ -41,13 +42,15 @@ async def product_id_for_update(message: Message, state: FSMContext):
 
 @router.message(UpdatePriceStates.waiting_for_new_price)
 async def update_price(message: Message, state: FSMContext):
-    if not message.text.isdigit():
+    if not message.text or not message.text.isdigit():
         await message.answer("Price must be an integer. Try again or type 'Cancel'")
         return
 
     data = await state.get_data()
     product_id = data["product_id"]
     target_price = int(message.text)
+
+    if not message.from_user: return
     user_id = message.from_user.id
 
     result = await grpc_client.update_product_price(

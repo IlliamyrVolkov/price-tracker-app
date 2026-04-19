@@ -28,6 +28,7 @@ async def cancel_handler(message: Message, state: FSMContext) -> None:
 
 @router.message(Command("start"))
 async def start_handler(message: Message) -> None:
+    if not message.from_user: return
     user_id = message.from_user.id
     user_name = message.from_user.username or message.from_user.first_name
 

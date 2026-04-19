@@ -8,6 +8,7 @@ router = Router()
 
 @router.message(F.text == "📋 My products")
 async def get_user_products(message: Message):
+    if not message.from_user: return
     user_id = message.from_user.id
     products = await grpc_client.get_products(user_id)
 
