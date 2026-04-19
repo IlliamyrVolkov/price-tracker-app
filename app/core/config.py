@@ -12,6 +12,7 @@ class TelegramSettings(BaseModel):
 
 class KafkaSettings(BaseModel):
     bootstrap_servers: str
+    topic: str
 
 
 class GrpcSettings(BaseModel):

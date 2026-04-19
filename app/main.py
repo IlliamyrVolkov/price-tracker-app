@@ -1,8 +1,8 @@
-from aiokafka import AIOKafkaConsumer
 from aiogram import Bot, Dispatcher
 import asyncio
 
 from core.config import settings
+from services.kafka_consumer import consume_price
 from tg_bot.handlers import (
     add_product,
     common,
@@ -11,21 +11,6 @@ from tg_bot.handlers import (
     updt_product_price
 )
 
-
-
-async def consume_kafka():
-    consumer = AIOKafkaConsumer(
-        'my_topic', 'my_other_topic',
-        bootstrap_servers=settings.kafka.bootstrap_servers,
-        group_id="my-group")
-
-    await consumer.start()
-    try:
-        async for msg in consumer:
-            print("consumed: ", msg.topic, msg.partition, msg.offset,
-                  msg.key, msg.value, msg.timestamp)
-    finally:
-        await consumer.stop()
 
 
 async def main():
@@ -38,9 +23,7 @@ async def main():
     disp.include_router(del_product.router)
     disp.include_router(updt_product_price.router)
 
-    kafka_task = asyncio.create_task(consume_kafka())
-
-    print("Bot is starting...")
+    kafka_task = asyncio.create_task(consume_price(bot))
 
     try:
         await disp.start_polling(bot)
