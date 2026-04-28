@@ -6,12 +6,19 @@ from aiogram.types import Message, ReplyKeyboardRemove
 
 from tg_bot.keyboards import builders as kb
 from services.grpc_client.client import grpc_client
+from tg_bot.utils.messages import (
+    BTN_MY_PDT,
+    BTN_ADD,
+    BTN_DEL,
+    BTN_CHANGE,
+    BTN_CANCEL,
+)
 
 router = Router()
 
 
-@router.message(StateFilter("*"), Command("cancel"))
-@router.message(StateFilter("*"), F.text.casefold() == "cancel")
+@router.message(StateFilter("*"), Command(BTN_CANCEL))
+@router.message(StateFilter("*"), F.text == BTN_CANCEL)
 async def cancel_handler(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
     if current_state is None:
@@ -21,7 +28,7 @@ async def cancel_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
 
     await message.answer(
-        "Action cancelled.",
+        "Запис скасовано.",
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -34,11 +41,11 @@ async def start_handler(message: Message) -> None:
 
     await grpc_client.register_user(user_id, user_name)
     await message.answer(
-        "Hello! I am a bot for price updates. What do you want to do?",
+        "Привіт! Я бот для оновлення цін. Що ти хочеш зробити?",
         reply_markup=kb.get_reply_keyboard(
-            "📋 My products",
-            "➕ Add product",
-            "🗑️ Delete product",
-            "✨ Change product",
+            BTN_MY_PDT,
+            BTN_ADD,
+            BTN_DEL,
+            BTN_CHANGE,
         )
     )

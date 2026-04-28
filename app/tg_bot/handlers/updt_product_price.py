@@ -5,6 +5,7 @@ from aiogram.fsm.state import StatesGroup, State
 
 from services.grpc_client.client import grpc_client
 from tg_bot.utils.formatters import get_formatted_products_text
+from tg_bot.utils.messages import MSG_SERVER_ERROR, BTN_CHANGE
 
 router = Router()
 
@@ -14,36 +15,36 @@ class UpdatePriceStates(StatesGroup):
     waiting_for_new_price = State()
 
 
-@router.message(F.text == "✨ Change product")
+@router.message(F.text == BTN_CHANGE)
 async def init_change_price(message: Message, state: FSMContext):
     if not message.from_user: return
     products_text = await get_formatted_products_text(message.from_user.id)
 
     if not products_text:
         await message.answer(
-            "You don't have any tracked products yet. Click ➕ Add product to add your first one!"
+            "У вас ще немає відстежуваних товарів. Натисніть ➕ Додати товар, щоб додати свій перший!"
         )
         return
 
-    await message.answer(f"{products_text}\nEnter the product ID you want to change price for:")
+    await message.answer(f"{products_text}\nВведи ID товару який хочеш змінити:")
     await state.set_state(UpdatePriceStates.waiting_for_product_id)
 
 
 @router.message(UpdatePriceStates.waiting_for_product_id)
 async def product_id_for_update(message: Message, state: FSMContext):
     if not message.text or not message.text.isdigit():
-        await message.answer("ID must be an integer. Try again or type 'Cancel'")
+        await message.answer("ID має бути числом.")
         return
 
     await state.update_data(product_id = int(message.text))
-    await message.answer("Enter a new price")
+    await message.answer("Введи нову ціну")
     await state.set_state(UpdatePriceStates.waiting_for_new_price)
 
 
 @router.message(UpdatePriceStates.waiting_for_new_price)
 async def update_price(message: Message, state: FSMContext):
     if not message.text or not message.text.isdigit():
-        await message.answer("Price must be an integer. Try again or type 'Cancel'")
+        await message.answer("Ціна має бути числом.")
         return
 
     data = await state.get_data()
@@ -59,8 +60,8 @@ async def update_price(message: Message, state: FSMContext):
         target_price=target_price
     )
     if result:
-        await message.answer("Price updated successfully! ✨")
+        await message.answer("Ціну оновлено успішно! ✨")
     else:
-        await message.answer("Server error. Try again later.")
+        await message.answer(MSG_SERVER_ERROR)
 
     await state.clear()

@@ -2,11 +2,12 @@ from aiogram import Router, F
 from aiogram.types import Message
 
 from services.grpc_client.client import grpc_client
+from tg_bot.utils.messages import BTN_MY_PDT
 
 router = Router()
 
 
-@router.message(F.text == "📋 My products")
+@router.message(F.text == BTN_MY_PDT)
 async def get_user_products(message: Message):
     if not message.from_user: return
     user_id = message.from_user.id
@@ -14,11 +15,11 @@ async def get_user_products(message: Message):
 
     if not products:
         await message.answer(
-            "You don't have any tracked products yet. Click ➕ Add product to add your first one!"
+            "У вас ще немає відстежуваних товарів. Натисніть ➕ Додати товар, щоб додати свій перший!"
         )
         return
 
-    text = "Your tracked products:\n\n"
+    text = "Відстежені продукти:\n\n"
     for product in products:
         text += f"{product.name} - {product.target_price} - {product.url}\n"
 
