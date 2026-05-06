@@ -40,8 +40,8 @@ async def consume_price(bot: Bot):
                             product_url = product.url
                             break
 
-                text = (f"Price reduction on <b>{product_name}</b>!" 
-                        f"Was: {old_price}, Became: {new_price}"
+                text = (f"Зниження ціни на <b>{product_name}</b>!" 
+                        f"Стара ціна: {old_price}, Нова ціна: {new_price}"
                         f"🔗 <a href='{product_url}'>Product link</a>"
                 )
 
