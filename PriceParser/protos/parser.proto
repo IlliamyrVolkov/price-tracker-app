@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package price;
+
+option go_package = "./gen/parser;parser";
+
+service GetPrice{
+      rpc ParserWeb(ParseRequest)returns(ParseResponse);
+}
+
+message ParseRequest{
+  string url = 1;
+}
+
+message ParseResponse{
+  double price = 1;
+}

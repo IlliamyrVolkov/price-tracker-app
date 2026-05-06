@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  parser:
+    build:
+      context: ./PriceParser
+    container_name: grpc_parser
+    ports:
+      - "50051:50051"
+    restart: unless-stopped
+    networks:
+      - bot_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  bot:
+    build:
+      context: ./PriceTrackerBot
+    container_name: tg_bot
+    env_file:
+      - ./PriceTrackerBot/.env
+    restart: unless-stopped
+    networks:
+      - bot_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  bot_network:
+    driver: bridge
