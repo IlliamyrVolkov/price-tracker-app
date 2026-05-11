@@ -6,7 +6,7 @@ import json
 
 class Parser:
     def __init__(self, url):
-        self.headers = {"User-Agent": "Mozilla/5.0", "Accept": "text/html"}
+        self.headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
         self.url = url
 
     def _get_html(self) -> str:

@@ -37,7 +37,7 @@ async def cancel_handler(message: Message, state: FSMContext) -> None:
 async def start_handler(message: Message) -> None:
     if not message.from_user: return
     user_id = message.from_user.id
-    user_name = message.from_user.username or message.from_user.first_name
+    user_name = message.from_user.username or message.from_user.first_name or "unknown"
 
     await grpc_client.register_user(user_id, user_name)
     await message.answer(
