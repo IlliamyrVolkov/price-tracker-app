@@ -28,7 +28,11 @@ async def main():
     try:
         await disp.start_polling(bot)
     finally:
-        await disp.stop_polling()
+        try:
+            await disp.stop_polling()
+        except RuntimeError:
+            pass
+
         kafka_task.cancel()
 
 

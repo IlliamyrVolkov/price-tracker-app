@@ -3,8 +3,6 @@ services:
     build:
       context: ./PriceParser
     container_name: grpc_parser
-    ports:
-      - "50051:50051"
     restart: unless-stopped
     logging:
       driver: "json-file"

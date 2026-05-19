@@ -1,6 +1,8 @@
 import json
 import logging
+import asyncio
 from aiokafka import AIOKafkaConsumer
+from aiokafka.errors import KafkaConnectionError
 from aiogram import Bot
 from core.config import settings
 
@@ -16,8 +18,19 @@ async def consume_price(bot: Bot):
         auto_offset_reset="earliest",
         value_deserializer=lambda m: json.loads(m.decode('utf-8'))
     )
-    await consumer.start()
-    logging.info(f"Kafka Consumer started. Listening to topic: {settings.kafka.topic}")
+
+    while True:
+        try:
+            await consumer.start()
+            logging.info(f"Kafka Consumer started. Listening to topic: {settings.kafka.topic}")
+            break
+        except KafkaConnectionError:
+            logging.warning("Kafka isn't ready yet. Wait 5 seconds and wake up again...")
+            await asyncio.sleep(5)
+        except Exception as e:
+            logging.warning(f"Error connecting to Kafka: {e}. Wait 5 seconds...")
+            await asyncio.sleep(5)
+
     try:
         async for msg in consumer:
             data = msg.value
