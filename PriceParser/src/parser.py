@@ -6,7 +6,10 @@ import json
 
 class Parser:
     def __init__(self, url):
-        self.headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+        self.headers = {"User-Agent":
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/120.0.0.0 Safari/537.36"}
         self.url = url
 
     def _get_html(self) -> str:
@@ -27,33 +30,53 @@ class Parser:
         text = self._get_html()
         soup = BeautifulSoup(text, "html.parser")
 
+        og_price = soup.find("meta", property="product:price:amount")
+        if og_price and og_price.get("content"):
+            return self._clean_price(og_price.get("content"))
+
+        main_block = soup.find("div", class_="product-info-main")
+        if main_block:
+            price_wrapper = main_block.find("span", attrs={"data-price-type": "finalPrice"})
+            if price_wrapper:
+                price_span = price_wrapper.find("span", class_="price")
+                if price_span:
+                    raw_text = price_span.text.replace(" ", "").replace("\xa0", "").split(",")[0]
+                    return self._clean_price(raw_text)
+
         scripts = soup.find_all("script", type="application/ld+json")
         for script in scripts:
             try:
                 data = json.loads(script.text)
+                items = []
 
                 if isinstance(data, list):
-                    item = data[0]
-                else:
-                    item = data
+                    items.extend(data)
+                elif isinstance(data, dict):
+                    if "@graph" in data:
+                        items.extend(data["@graph"])
+                    else:
+                        items.append(data)
 
-                if item.get("@type") == "Product":
-                    offers = item.get("offers")
-                    if offers:
+                for item in items:
+                    if isinstance(item, dict) and item.get("@type") == "Product":
+                        offers = item.get("offers")
+                        if not offers:
+                            continue
+
                         if isinstance(offers, list):
-                            raw_price = offers[0].get("price")
+                            offer = offers[0]
                         else:
-                            raw_price = offers.get("price")
+                            offer = offers
 
+                        raw_price = offer.get("price")
                         if raw_price:
                             return self._clean_price(raw_price)
-            except json.JSONDecodeError:
+
+            except (json.JSONDecodeError, AttributeError):
                 continue
 
-        price_element = soup.find(attrs={"itemprop": "price"})
-        if price_element:
-            raw_price = price_element.get("content") or price_element.text
-            return Parser._clean_price(str(raw_price))
+        meta_price = soup.find("meta", attrs={"itemprop": "price"})
+        if meta_price and meta_price.get("content"):
+            return self._clean_price(str(meta_price.get("content")))
 
         raise ValueError("Unable to find price: site does not use standard SEO tags")
-
