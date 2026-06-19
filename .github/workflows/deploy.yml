@@ -26,5 +26,5 @@ jobs:
             cd "${{ secrets.DEPLOY_PATH }}"     
             git pull --ff-only origin main
             docker network inspect shared-net >/dev/null 2>&1 || docker network create shared-net
-            docker compose up -d --build bot parser
+            docker-compose up -d --build bot parser
             docker image prune -f
