@@ -1,0 +1,30 @@
+name: Deploy bot & parser to VPS
+
+
+on:
+  push:
+    branches: [ main ]        
+  workflow_dispatch: {}        
+
+concurrency:
+  group: deploy-vps            
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}      
+          script: |
+            set -e
+            cd "${{ secrets.DEPLOY_PATH }}"     
+            git pull --ff-only origin main
+            docker network inspect shared-net >/dev/null 2>&1 || docker network create shared-net
+            docker compose up -d --build bot parser
+            docker image prune -f
