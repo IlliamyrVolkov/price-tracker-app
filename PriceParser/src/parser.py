@@ -3,12 +3,14 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 import json
 import re
 from typing import Any
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 from curl_cffi import requests
 
 from src.core.logger import logger
-from src.exceptions import PriceFormatError, PriceNotFoundError
+from src.core.validators import validate_public_http_url
+from src.exceptions import PriceFetchError, PriceFormatError, PriceNotFoundError
 
 # Everything that is not a digit or a separator is noise: currency symbols,
 # letters, regular and non-breaking spaces, narrow spaces, apostrophes.
@@ -19,17 +21,51 @@ _CENTS = Decimal("0.01")
 _MIN_PRICE = Decimal("0.01")
 _MAX_PRICE = Decimal("100000000")
 
+# The browser profile also supplies a matching User-Agent, so setting one by
+# hand would only make the fingerprint inconsistent.
+_IMPERSONATE = "chrome110"
+_DEFAULT_HEADERS = {"Accept-Language": "uk-UA,uk;q=0.9,en;q=0.8"}
+_REQUEST_TIMEOUT = 15.0
+_MAX_REDIRECTS = 5
+_REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+
 
 class Parser:
-    def __init__(self, url):
-        self.headers = {"User-Agent":
-                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                            "AppleWebKit/537.36 (KHTML, like Gecko) "
-                            "Chrome/120.0.0.0 Safari/537.36"}
+    def __init__(self, url: str, timeout: float = _REQUEST_TIMEOUT) -> None:
         self.url = url
+        self.timeout = timeout
+        self.headers = dict(_DEFAULT_HEADERS)
 
     def _get_html(self) -> str:
-        return requests.get(self.url, headers=self.headers, impersonate="chrome110").text
+        url = validate_public_http_url(self.url)
+
+        with requests.Session() as session:
+            for _ in range(_MAX_REDIRECTS + 1):
+                try:
+                    response = session.get(
+                        url,
+                        headers=self.headers,
+                        impersonate=_IMPERSONATE,
+                        timeout=self.timeout,
+                        allow_redirects=False,
+                    )
+                except Exception as error:
+                    raise PriceFetchError(f"request to {url} failed: {error}") from error
+
+                if response.status_code not in _REDIRECT_STATUSES:
+                    if response.status_code >= 400:
+                        raise PriceFetchError(f"{url} returned HTTP {response.status_code}")
+                    return response.text
+
+                location = response.headers.get("location")
+                if not location:
+                    raise PriceFetchError(
+                        f"{url} returned HTTP {response.status_code} without a location header"
+                    )
+                url = validate_public_http_url(urljoin(url, location))
+                logger.info("Following redirect to %s", url)
+
+        raise PriceFetchError(f"more than {_MAX_REDIRECTS} redirects starting from {self.url}")
 
     @staticmethod
     def _is_thousands_grouping(digits: str, separator: str) -> bool:
