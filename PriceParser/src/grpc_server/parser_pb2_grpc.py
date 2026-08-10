@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import parser_pb2 as parser__pb2
+from . import parser_pb2 as parser__pb2
 
 GRPC_GENERATED_VERSION = '1.80.0'
 GRPC_VERSION = grpc.__version__
