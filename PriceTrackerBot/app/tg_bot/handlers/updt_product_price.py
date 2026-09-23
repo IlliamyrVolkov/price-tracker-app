@@ -3,9 +3,20 @@ from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
+from core.validators import parse_price
 from services.grpc_client.client import grpc_client
-from tg_bot.utils.formatters import get_formatted_products_text
-from tg_bot.utils.messages import MSG_SERVER_ERROR, BTN_CHANGE
+from tg_bot.filters import NOT_MENU_OR_COMMAND
+from tg_bot.keyboards import builders as kb
+from tg_bot.utils.formatters import format_price
+from tg_bot.utils.products import ask_for_product, read_product_id
+from tg_bot.utils.messages import (
+    BTN_CHANGE,
+    MSG_ASK_NEW_PRICE,
+    MSG_ASK_UPDATE_ID,
+    MSG_BAD_PRICE,
+    MSG_PRICE_UPDATED,
+    MSG_SERVER_ERROR,
+)
 
 router = Router()
 
@@ -17,51 +28,40 @@ class UpdatePriceStates(StatesGroup):
 
 @router.message(F.text == BTN_CHANGE)
 async def init_change_price(message: Message, state: FSMContext):
-    if not message.from_user: return
-    products_text = await get_formatted_products_text(message.from_user.id)
-
-    if not products_text:
-        await message.answer(
-            "У вас ще немає відстежуваних товарів. Натисніть ➕ Додати товар, щоб додати свій перший!"
-        )
-        return
-
-    await message.answer(f"{products_text}\nВведи ID товару який хочеш змінити:")
-    await state.set_state(UpdatePriceStates.waiting_for_product_id)
+    await ask_for_product(
+        message, state, UpdatePriceStates.waiting_for_product_id, MSG_ASK_UPDATE_ID
+    )
 
 
-@router.message(UpdatePriceStates.waiting_for_product_id)
+@router.message(UpdatePriceStates.waiting_for_product_id, NOT_MENU_OR_COMMAND)
 async def product_id_for_update(message: Message, state: FSMContext):
-    if not message.text or not message.text.isdigit():
-        await message.answer("ID має бути числом.")
+    product_id = await read_product_id(message, state)
+    if product_id is None:
         return
 
-    await state.update_data(product_id = int(message.text))
-    await message.answer("Введи нову ціну")
+    await state.update_data(product_id=product_id)
     await state.set_state(UpdatePriceStates.waiting_for_new_price)
+    await message.answer(MSG_ASK_NEW_PRICE)
 
 
-@router.message(UpdatePriceStates.waiting_for_new_price)
+@router.message(UpdatePriceStates.waiting_for_new_price, NOT_MENU_OR_COMMAND)
 async def update_price(message: Message, state: FSMContext):
-    if not message.text or not message.text.isdigit():
-        await message.answer("Ціна має бути числом.")
+    if not message.from_user: return
+    target_price = parse_price(message.text)
+    if target_price is None:
+        await message.answer(MSG_BAD_PRICE)
         return
 
     data = await state.get_data()
-    product_id = data["product_id"]
-    target_price = int(message.text)
+    await state.clear()
 
-    if not message.from_user: return
-    user_id = message.from_user.id
-
-    result = await grpc_client.update_product_price(
-        user_id=user_id,
-        product_id=product_id,
+    updated = await grpc_client.update_product_price(
+        user_id=message.from_user.id,
+        product_id=data["product_id"],
         target_price=target_price
     )
-    if result:
-        await message.answer("Ціну оновлено успішно! ✨")
+    if updated:
+        text = MSG_PRICE_UPDATED.format(target_price=format_price(target_price))
     else:
-        await message.answer(MSG_SERVER_ERROR)
-
-    await state.clear()
+        text = MSG_SERVER_ERROR
+    await message.answer(text, reply_markup=kb.main_menu())
