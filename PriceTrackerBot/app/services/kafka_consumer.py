@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 from dataclasses import dataclass
 from html import escape
 from typing import Any
@@ -11,12 +12,14 @@ from aiogram.exceptions import (
     TelegramForbiddenError,
     TelegramRetryAfter,
 )
+from aiogram.types import LinkPreviewOptions
 from aiokafka import AIOKafkaConsumer
 from aiokafka.errors import KafkaError
 
 from core.config import settings
 from core.validators import is_http_url
 from services.grpc_client.client import grpc_client
+from tg_bot.utils.formatters import format_price
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,9 @@ _START_RETRY_DELAY = 5
 _MAX_RETRY_DELAY = 60
 _SEND_ATTEMPTS = 3
 _MAX_RETRY_AFTER = 60
+# Events are read from the start of the topic when the group has no offsets,
+# so a backlog left from a downtime must not reach users days late.
+_MAX_EVENT_AGE = 24 * 60 * 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +40,8 @@ class PriceDropEvent:
     product_id: int
     old_price: float | None
     new_price: float | None
+    name: str | None = None
+    url: str | None = None
 
 
 def _parse_price(value: Any) -> float | None:
@@ -43,6 +51,12 @@ def _parse_price(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _parse_text(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip()
 
 
 def _parse_event(raw: bytes | None) -> PriceDropEvent:
@@ -63,23 +77,31 @@ def _parse_event(raw: bytes | None) -> PriceDropEvent:
         product_id=product_id,
         old_price=_parse_price(payload.get("old_price")),
         new_price=_parse_price(payload.get("new_price")),
+        name=_parse_text(payload.get("name")),
+        url=_parse_text(payload.get("url")),
     )
 
 
-def _format_price(value: float | None) -> str:
-    if value is None:
-        return "—"
-    if float(value).is_integer():
-        return f"{int(value):,}".replace(",", " ")
-    return f"{value:,.2f}".replace(",", " ")
+def _is_stale(timestamp_ms: int | None, now: float | None = None) -> bool:
+    if not timestamp_ms or timestamp_ms < 0:
+        return False
+    now = time.time() if now is None else now
+    return now - timestamp_ms / 1000 > _MAX_EVENT_AGE
 
 
 def _build_alert(event: PriceDropEvent, name: str, url: str) -> str:
-    lines = [
-        f"📉 Ціна знизилась на <b>{escape(name)}</b>",
-        f"Була: {_format_price(event.old_price)}",
-        f"Стала: <b>{_format_price(event.new_price)}</b>",
-    ]
+    old_price, new_price = event.old_price, event.new_price
+    lines = [f"🔔 Ціна на <b>{escape(name)}</b> знизилась!", ""]
+
+    if old_price and new_price and old_price > new_price:
+        change = f"<s>{format_price(old_price)}</s> → <b>{format_price(new_price)}</b>"
+        percent = round((old_price - new_price) / old_price * 100)
+        if percent >= 1:
+            change += f"  (−{percent}%)"
+        lines.append(change)
+    else:
+        lines.append(f"Нова ціна: <b>{format_price(new_price)}</b>")
+
     if is_http_url(url):
         lines.append(f'🔗 <a href="{escape(url, quote=True)}">Перейти до товару</a>')
     return "\n".join(lines)
@@ -87,6 +109,9 @@ def _build_alert(event: PriceDropEvent, name: str, url: str) -> str:
 
 async def _resolve_product(event: PriceDropEvent) -> tuple[str, str]:
     fallback_name = f"Товар #{event.product_id}"
+    if event.name:
+        return event.name, event.url or ""
+
     try:
         products = await grpc_client.get_products(event.user_id)
     except Exception:
@@ -104,7 +129,12 @@ async def _resolve_product(event: PriceDropEvent) -> tuple[str, str]:
 async def _send_alert(bot: Bot, event: PriceDropEvent, text: str) -> None:
     for attempt in range(1, _SEND_ATTEMPTS + 1):
         try:
-            await bot.send_message(chat_id=event.user_id, text=text, parse_mode="HTML")
+            await bot.send_message(
+                chat_id=event.user_id,
+                text=text,
+                parse_mode="HTML",
+                link_preview_options=LinkPreviewOptions(is_disabled=False, prefer_small_media=True),
+            )
             return
         except TelegramRetryAfter as error:
             delay = min(error.retry_after, _MAX_RETRY_AFTER)
@@ -133,7 +163,7 @@ def _build_consumer() -> AIOKafkaConsumer:
         bootstrap_servers=settings.kafka.bootstrap_servers,
         group_id=CONSUMER_GROUP_ID,
         enable_auto_commit=False,
-        auto_offset_reset="latest",
+        auto_offset_reset="earliest",
     )
 
 
@@ -168,9 +198,12 @@ async def _consume(bot: Bot, consumer: AIOKafkaConsumer) -> None:
                 message.topic, message.partition, message.offset, error,
             )
         else:
-            logger.info("Price drop event received: %s", event)
-            name, url = await _resolve_product(event)
-            await _send_alert(bot, event, _build_alert(event, name, url))
+            if _is_stale(message.timestamp):
+                logger.info("Skipping stale event from %s: %s", message.timestamp, event)
+            else:
+                logger.info("Price drop event received: %s", event)
+                name, url = await _resolve_product(event)
+                await _send_alert(bot, event, _build_alert(event, name, url))
 
         try:
             await consumer.commit()
