@@ -12,12 +12,18 @@ from . import price_pb2_grpc
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 5.0
+# Adding a product may make the backend fetch the page first, and the parser
+# alone is allowed to spend up to 15 seconds on it.
+ADD_PRODUCT_TIMEOUT = 20.0
 MAX_ATTEMPTS = 2
 RETRY_DELAY = 0.5
 RETRIABLE_CODES = frozenset({
     grpc.StatusCode.UNAVAILABLE,
     grpc.StatusCode.DEADLINE_EXCEEDED,
 })
+# A call that timed out may still have been applied by the server, so calls
+# that create something are only retried when the request never got through.
+NON_IDEMPOTENT_RETRIABLE_CODES = frozenset({grpc.StatusCode.UNAVAILABLE})
 CHANNEL_OPTIONS = [
     ("grpc.keepalive_time_ms", 30_000),
     ("grpc.keepalive_timeout_ms", 10_000),
@@ -52,13 +58,21 @@ class PriceClient:
             self._channel = None
             self._stub = None
 
-    async def _call(self, method_name: str, request: Any) -> Any | None:
+    async def _call(
+        self,
+        method_name: str,
+        request: Any,
+        *,
+        timeout: float | None = None,
+        idempotent: bool = True,
+    ) -> Any | None:
         stub = await self._get_stub()
         method = getattr(stub, method_name)
+        retriable = RETRIABLE_CODES if idempotent else NON_IDEMPOTENT_RETRIABLE_CODES
 
         for attempt in range(1, MAX_ATTEMPTS + 1):
             try:
-                return await method(request, timeout=self._timeout)
+                return await method(request, timeout=timeout or self._timeout)
             except asyncio.CancelledError:
                 raise
             except grpc.aio.AioRpcError as error:
@@ -66,7 +80,7 @@ class PriceClient:
                     "gRPC %s failed (attempt %s/%s): %s - %s",
                     method_name, attempt, MAX_ATTEMPTS, error.code().name, error.details(),
                 )
-                if error.code() not in RETRIABLE_CODES or attempt == MAX_ATTEMPTS:
+                if error.code() not in retriable or attempt == MAX_ATTEMPTS:
                     return None
                 await asyncio.sleep(RETRY_DELAY)
             except Exception:
@@ -95,6 +109,8 @@ class PriceClient:
                 name=name,
                 target_price=target_price,
             ),
+            timeout=ADD_PRODUCT_TIMEOUT,
+            idempotent=False,
         )
         if response is None:
             return None
